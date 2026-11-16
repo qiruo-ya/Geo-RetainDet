@@ -1,0 +1,74 @@
+schema_version: 1
+protocol_id: dota_v1_0_descreg_vkdet_11_4_uniform800
+dataset: DOTA-v1.0
+split_variant: DescReg/VK-Det 11/4
+expected_novel_count: 4
+task: HBB open-vocabulary object detection
+iou_threshold: 0.5
+max_detections_per_image: 100
+source:
+  train_original_images: 1411
+  validation_original_images: 458
+  train_patch_images: 18430
+  validation_patch_images: 6259
+  patch_size: 800
+  window_count_rule: ceil(size / 800)
+  window_placement: uniformly spaced, including both image boundaries
+  truncation_iof_threshold: 0.7
+  low_iof_difficult: 2
+notes:
+  - "Train uses only the official train split; evaluation uses only official validation."
+  - "The count rule follows the published 18430/6259 hard gates."
+  - "floor(size/800)+1 is incompatible with those gates for dimensions divisible by 800."
+  - "The formal longitudinal training annotation removes raw train images containing any novel instance before patch selection."
+  - "instances_train.json retains all images and is audit/annotation-filtered only; formal D1 uses instances_train_image_exclusive.json."
+strict_inductive:
+  primary: true
+  train_prompt_scope: base
+  train_annotation_scope: base
+  allow_novel_names_in_train_prompt: false
+  allow_novel_aliases_in_train_prompt: false
+  allow_novel_descriptions_in_train_prompt: false
+  allow_novel_gt_boxes_in_train: false
+  use_novel_boxes_as_ignore: false
+  allowed_initializer_checkpoint_id: generic_gdino
+  filtering: image-level-before-patching
+eval_protocols:
+  zsd:
+    prompt_scope: novel
+    annotation_scope: novel
+    metrics: [AP50_novel, Recall100_novel]
+  gzsd:
+    primary: true
+    prompt_scope: all
+    annotation_scope: all
+    metrics: [AP50_base, AP50_novel, AP50_all, HM_AP50, HM_R100]
+metrics: [AP50_base, AP50_novel, AP50_all, HM_AP50, Recall100_at_IoU_0.5]
+paths:
+  train_base: data/DOTA_v1_0/annotations/instances_train.json
+  train_base_image_exclusive: data/DOTA_v1_0/annotations/instances_train_image_exclusive.json
+  train_all_audit_only: data/DOTA_v1_0/annotations/instances_train_all15.json
+  val_all: data/DOTA_v1_0/annotations/instances_val.json
+  val_base: data/DOTA_v1_0/annotations/val_base.json
+  val_zsd: data/DOTA_v1_0/annotations/eval_zsd_novel.json
+  val_gzsd: data/DOTA_v1_0/annotations/eval_gzsd_all.json
+prompt_orders:
+  base: [plane, ship, storage-tank, baseball-diamond, basketball-court, ground-track-field, harbor, bridge, large-vehicle, small-vehicle, roundabout]
+  novel: [tennis-court, helicopter, soccer-ball-field, swimming-pool]
+  all: [plane, ship, storage-tank, baseball-diamond, basketball-court, ground-track-field, harbor, bridge, large-vehicle, small-vehicle, roundabout, tennis-court, helicopter, soccer-ball-field, swimming-pool]
+classes:
+  - {canonical: plane, dataset_id: 1, continuous_id: 0, split: base, aliases: [airplane, aircraft], prompt_text: plane}
+  - {canonical: ship, dataset_id: 7, continuous_id: 1, split: base, aliases: [ship, vessel], prompt_text: ship}
+  - {canonical: storage-tank, dataset_id: 10, continuous_id: 2, split: base, aliases: [storage tank, tank], prompt_text: storage tank}
+  - {canonical: baseball-diamond, dataset_id: 2, continuous_id: 3, split: base, aliases: [baseball diamond, baseball field], prompt_text: baseball diamond}
+  - {canonical: basketball-court, dataset_id: 9, continuous_id: 4, split: base, aliases: [basketball court], prompt_text: basketball court}
+  - {canonical: ground-track-field, dataset_id: 4, continuous_id: 5, split: base, aliases: [ground track field, running track, athletic track], prompt_text: ground track field}
+  - {canonical: harbor, dataset_id: 13, continuous_id: 6, split: base, aliases: [harbor, harbour, port], prompt_text: harbor}
+  - {canonical: bridge, dataset_id: 3, continuous_id: 7, split: base, aliases: [bridge], prompt_text: bridge}
+  - {canonical: large-vehicle, dataset_id: 6, continuous_id: 8, split: base, aliases: [large vehicle, truck, bus], prompt_text: large vehicle}
+  - {canonical: small-vehicle, dataset_id: 5, continuous_id: 9, split: base, aliases: [small vehicle, car], prompt_text: small vehicle}
+  - {canonical: roundabout, dataset_id: 12, continuous_id: 10, split: base, aliases: [roundabout, traffic circle], prompt_text: roundabout}
+  - {canonical: tennis-court, dataset_id: 8, continuous_id: 11, split: novel, aliases: [tennis court], prompt_text: tennis court}
+  - {canonical: helicopter, dataset_id: 15, continuous_id: 12, split: novel, aliases: [helicopter, rotorcraft], prompt_text: helicopter}
+  - {canonical: soccer-ball-field, dataset_id: 11, continuous_id: 13, split: novel, aliases: [soccer ball field, soccer field, football field], prompt_text: soccer ball field}
+  - {canonical: swimming-pool, dataset_id: 14, continuous_id: 14, split: novel, aliases: [swimming pool, pool], prompt_text: swimming pool}

@@ -6,26 +6,75 @@
 
 RetainDet adapts Grounding DINO for open-vocabulary aerial object detection. Semantic Distribution Retention (SDR) preserves pretrained semantic responses during base-category adaptation. Geometric Objectness Learning (GOL) learns box-alignment quality through shared visual features. Remote-Sensing Expert Rectification (RER) uses a frozen remote-sensing vision-language expert to conditionally refine region labels.
 
-## Release scope
+## Included implementation
 
-This repository provides selected core implementation files and one DOTA-v1.0 configuration fragment. End-to-end training and evaluation require integration with the original MMDetection-based project, dataset preparation, teacher initialization and expert inference components. The fragment exposes the SDR/GOL settings and optimizer recipe. The full detector architecture, data pipelines and teacher configuration must be supplied by the host project.
+The release includes the SDR/GOL detector, geometric optimizer, native-evidence routing utility, DOTA-v1.0 dataset and metrics, a complete expanded training configuration, teacher architecture and training/evaluation entry points. The configuration comes from the completed server G2 run with portable paths and focused module imports.
 
-## Code
-
-| File | Purpose |
+| Path | Purpose |
 | --- | --- |
-| `core/sgr_grounding_dino.py` | Grounding DINO integration, semantic retention losses and geometric quality head |
-| `core/geo_optim_wrapper.py` | Optimizer wrapper for geometric-head gradient clipping |
-| `core/native_preserving_expert.py` | Native-evidence preservation and budgeted expert-query routing utility |
-| `configs/dota_v1_core.py` | DOTA-v1.0 SDR/GOL training settings |
+| `core/sgr_grounding_dino.py` | Semantic retention and geometric quality learning |
+| `core/geo_optim_wrapper.py` | Geometric-head optimizer handling |
+| `core/native_preserving_expert.py` | Native-evidence preservation utility |
+| `core/ovad/` | Protocol-aware dataset and evaluation metrics |
+| `configs/dota_v1_train.py` | Full DOTA-v1.0 training recipe |
+| `configs/dota_v1_teacher.py` | Frozen teacher architecture |
+| `configs/ovad_protocol_11_4.yaml` | DOTA-v1.0 class split and protocol |
+| `tools/train.py` | Single-GPU/distributed training and resume |
+| `tools/test.py` | Detector GZSD/ZSD evaluation |
 
-The research source retains legacy identifiers such as `SGR`, `SCR` and `geo_cfg`. The detector file also contains experimental branches. The configuration selects the released SDR/GOL settings. The native-preservation utility is one inference component. Full RER additionally requires region crops, RS5M features, calibration, score combination and final suppression.
+Legacy source names include SGR, SCR and `geo_cfg`. The server-specific checkpoint-provenance audit hook is omitted from the portable configuration. Training losses, model settings and optimizer settings are retained. The source detector includes experimental branches selected through configuration.
 
-## Dependencies and integration
+## Setup
 
-The detector implementation imports PyTorch, torchvision, SciPy, MMEngine and MMDetection with Grounding DINO support. The inference routing utility requires NumPy. Use a compatible MMDetection environment and place this repository on `PYTHONPATH`.
+Install a compatible MMDetection environment with Grounding DINO support, including PyTorch, torchvision, MMCV, MMEngine, transformers, SciPy, NumPy, PyYAML, pycocotools and terminaltables. Follow the MMDetection installation guide for CUDA-compatible versions.
 
-Merge `configs/dota_v1_core.py` into a complete Grounding DINO training configuration in the host project. Set the teacher configuration and checkpoint through `model.sgr_cfg`, prepare the dataset loaders, and register the custom modules through the supplied `custom_imports`. The recorded recipe uses 12 epochs, seed 3407, batch size 4 per GPU, gradient accumulation 2, and a two-GPU reference setup.
+Run commands from this repository root. Place the generic Grounding DINO checkpoint at `groundingdino_swint_ogc_mmdet-822d7e9d.pth` and the BERT tokenizer/model directory at `bert-base-uncased/`. These paths occur in both the training and teacher configurations and can be edited for your environment.
+
+Prepare the following dataset layout using the reference 800-pixel patch protocol.
+
+```text
+data/DOTA_v1_0/
+  train/images/
+  val/images/
+  annotations/
+    instances_train_image_exclusive.json
+    val_base.json
+    eval_gzsd_all.json
+    eval_zsd_novel.json
+```
+
+Annotation category IDs and names must match `configs/ovad_protocol_11_4.yaml`. Training excludes original images containing novel objects before patch extraction.
+
+## Training
+
+The reference recipe uses two GPUs, batch size 4 per GPU and accumulation 2, with seed 3407 and 12 epochs.
+
+```bash
+python -m torch.distributed.run --nproc_per_node=2 tools/train.py configs/dota_v1_train.py --launcher pytorch
+```
+
+Resume the latest checkpoint in the same work directory.
+
+```bash
+python -m torch.distributed.run --nproc_per_node=2 tools/train.py configs/dota_v1_train.py --launcher pytorch --resume
+```
+
+A single-GPU invocation is also supported. Adjust accumulation to preserve the reference effective batch size.
+
+```bash
+python tools/train.py configs/dota_v1_train.py --cfg-options optim_wrapper.accumulative_counts=4
+```
+
+## Detector evaluation
+
+```bash
+python tools/test.py configs/dota_v1_train.py work_dirs/dota_v1/epoch_12.pth --protocol gzsd
+python tools/test.py configs/dota_v1_train.py work_dirs/dota_v1/epoch_12.pth --protocol zsd
+```
+
+The entry point selects the appropriate annotation file and vocabulary and reports protocol-aware detector metrics at a 100-detection budget. Full RER evaluation additionally requires RS5M crop encoding, candidate selection, calibration and expert score combination. Those orchestration components remain outside this release. The native-preservation utility provides a reusable part of that inference path.
+
+The packaging changes and new entry points have not been executed as training or evaluation jobs. The source configuration was collected from the completed server experiment.
 
 ## DOTA-v1.0 protocol
 
